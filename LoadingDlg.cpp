@@ -77,6 +77,7 @@ CLoadingDlg::CLoadingDlg()
     : CDialogEx(IDD_LOADING_DIALOG, nullptr)
     , m_gdiplusToken(0)
     , m_fAngle(0.f)
+    , m_hAppIcon(nullptr)
 {
     GdiplusStartupInput si;
     GdiplusStartup(&m_gdiplusToken, &si, nullptr);
@@ -84,6 +85,7 @@ CLoadingDlg::CLoadingDlg()
 
 CLoadingDlg::~CLoadingDlg()
 {
+    if (m_hAppIcon) { ::DestroyIcon(m_hAppIcon); m_hAppIcon = nullptr; }
     if (m_gdiplusToken)
         GdiplusShutdown(m_gdiplusToken);
 }
@@ -117,14 +119,14 @@ BOOL CLoadingDlg::OnInitDialog()
     // 위치 + 크기 + 최상위(TOPMOST) 한 번에 설정
     SetWindowPos(&wndTopMost, x, y, DLG_W, DLG_H, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 
-    // 둥근 모서리
-    HRGN hRgn = CreateRoundRectRgn(0, 0, DLG_W + 1, DLG_H + 1,
-                                   CORNER_R * 2, CORNER_R * 2);
-    SetWindowRgn(hRgn, TRUE);
 
     // DWM 드롭 쉐도우
     MARGINS margins = { 1, 1, 1, 1 };
     DwmExtendFrameIntoClientArea(GetSafeHwnd(), &margins);
+
+    // 앱 아이콘 로드 (40×40)
+    m_hAppIcon = (HICON)::LoadImage(AfxGetResourceHandle(),
+        MAKEINTRESOURCE(IDI_APP_ICON), IMAGE_ICON, 40, 40, LR_DEFAULTCOLOR);
 
     // 스피너 애니메이션 (~60fps)
     SetTimer(TIMER_ANIM, 16, nullptr);
@@ -160,9 +162,12 @@ void CLoadingDlg::OnPaint()
 
     Graphics g(memDC.m_hDC);
     g.SetSmoothingMode(SmoothingModeAntiAlias);
-    g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
+    g.SetPixelOffsetMode(PixelOffsetModeHighQuality);
+    g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
 
     DrawBackground(g);
+    DrawLogo(g);
+    DrawSeparator(g);
     DrawSpinner(g);
     DrawLabel(g);
 
@@ -175,56 +180,116 @@ BOOL CLoadingDlg::OnEraseBkgnd(CDC*)
     return TRUE;
 }
 
-void CLoadingDlg::DrawBackground(Graphics& g)
+void CLoadingDlg::DrawBackground(Gdiplus::Graphics& g)
 {
-    SolidBrush bg(Color(255, 255, 255, 255));
+    Gdiplus::SolidBrush bg(Gdiplus::Color(255, 247, 248, 250));
     g.FillRectangle(&bg, 0, 0, DLG_W, DLG_H);
+
+    // 직각 테두리 1px
+    Gdiplus::Pen borderPen(Gdiplus::Color(255, 210, 214, 220), 1.f);
+    g.DrawRectangle(&borderPen, 0.5f, 0.5f, (float)(DLG_W - 1), (float)(DLG_H - 1));
 }
 
-void CLoadingDlg::DrawSpinner(Graphics& g)
+void CLoadingDlg::DrawLogo(Gdiplus::Graphics& g)
+{
+    Gdiplus::FontFamily ff(L"맑은 고딕");
+    Gdiplus::FontFamily fallback(L"Arial");
+    const Gdiplus::FontFamily* pFF = (ff.GetLastStatus() == Gdiplus::Ok) ? &ff : &fallback;
+
+    // --- 앱 아이콘 (ICO 리소스) ---
+    const int   iconSize = 40;
+    const float iconX    = 22.f;
+    const float iconY    = 26.f;
+
+    if (m_hAppIcon)
+    {
+        HDC hdc = g.GetHDC();
+        ::DrawIconEx(hdc, (int)iconX, (int)iconY, m_hAppIcon,
+                     iconSize, iconSize, 0, nullptr, DI_NORMAL);
+        g.ReleaseHDC(hdc);
+    }
+
+    // --- 브랜드명 ---
+    const float textX = iconX + iconSize + 10.f;
+
+    Gdiplus::Font brandFont(pFF, 15.f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+    Gdiplus::SolidBrush darkBrush(Gdiplus::Color(255, 25, 31, 40));
+    Gdiplus::PointF brandPt(textX, 25.f);
+    g.DrawString(L"KFTCOneCAP", -1, &brandFont, brandPt, &darkBrush);
+
+    // --- "Plus" 뱃지 ---
+    Gdiplus::RectF boundBox;
+    Gdiplus::StringFormat sfLeft;
+    sfLeft.SetAlignment(Gdiplus::StringAlignmentNear);
+    g.MeasureString(L"KFTCOneCAP", -1, &brandFont, brandPt, &sfLeft, &boundBox);
+
+    const float badgeX = boundBox.GetRight() + 6.f;
+    const float badgeY = 28.f;
+    const float badgeW = 36.f;
+    const float badgeH = 16.f;
+
+    // 양 끝 반원 pill 형태 — 소형 arc 4개보다 훨씬 부드럽게 렌더링
+    Gdiplus::SolidBrush badgeBrush(Gdiplus::Color(255, 49, 130, 246));
+    Gdiplus::GraphicsPath badgePath;
+    badgePath.AddArc(badgeX,                        badgeY, badgeH, badgeH,  90, 180);
+    badgePath.AddArc(badgeX + badgeW - badgeH,      badgeY, badgeH, badgeH, 270, 180);
+    badgePath.CloseFigure();
+    g.FillPath(&badgeBrush, &badgePath);
+
+    Gdiplus::Font badgeFont(pFF, 9.f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+    Gdiplus::SolidBrush whiteBrush(Gdiplus::Color(255, 255, 255, 255));
+    Gdiplus::StringFormat sfCenter;
+    sfCenter.SetAlignment(Gdiplus::StringAlignmentCenter);
+    sfCenter.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+    g.DrawString(L"Plus", -1, &badgeFont,
+                 Gdiplus::RectF(badgeX, badgeY, badgeW, badgeH), &sfCenter, &whiteBrush);
+
+    // --- 서브타이틀 ---
+    Gdiplus::Font subFont(pFF, 13.f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+    Gdiplus::SolidBrush grayBrush(Gdiplus::Color(255, 139, 149, 161));
+    g.DrawString(L"금융결제원 차세대 결제 솔루션", -1,
+                 &subFont, Gdiplus::PointF(textX, 50.f), &grayBrush);
+}
+
+void CLoadingDlg::DrawSeparator(Gdiplus::Graphics& g)
+{
+    Gdiplus::Pen sepPen(Gdiplus::Color(255, 229, 231, 235), 1.f);
+    g.DrawLine(&sepPen, 20.f, 88.f, (float)(DLG_W - 20), 88.f);
+}
+
+void CLoadingDlg::DrawSpinner(Gdiplus::Graphics& g)
 {
     const float cx   = DLG_W / 2.f;
-    const float cy   = DLG_H / 2.f - 18.f;
-    const float r    = 30.f;
-    const float penW = 5.f;
-    const RectF bounds(cx - r, cy - r, r * 2.f, r * 2.f);
+    const float cy   = 143.f;
+    const float r    = 24.f;
+    const float penW = 4.5f;
+    const Gdiplus::RectF bounds(cx - r, cy - r, r * 2.f, r * 2.f);
 
-    Pen trackPen(Color(255, 237, 240, 244), penW);
+    Gdiplus::Pen trackPen(Gdiplus::Color(255, 229, 231, 235), penW);
     g.DrawEllipse(&trackPen, bounds);
 
-    GraphicsPath arcPath;
+    Gdiplus::GraphicsPath arcPath;
     arcPath.AddArc(bounds, m_fAngle, 270.f);
 
-    Pen spinPen(Color(255, 49, 130, 246), penW);
-    spinPen.SetLineCap(LineCapRound, LineCapRound, DashCapFlat);
+    Gdiplus::Pen spinPen(Gdiplus::Color(255, 49, 130, 246), penW);
+    spinPen.SetLineCap(Gdiplus::LineCapRound, Gdiplus::LineCapRound, Gdiplus::DashCapFlat);
     g.DrawPath(&spinPen, &arcPath);
 }
 
-void CLoadingDlg::DrawLabel(Graphics& g)
+void CLoadingDlg::DrawLabel(Gdiplus::Graphics& g)
 {
-    const float cy      = DLG_H / 2.f - 18.f;
-    const float spinR   = 30.f;
-    const float textTop = cy + spinR + 20.f;
-
     Gdiplus::FontFamily ff(L"맑은 고딕");
     Gdiplus::FontFamily fallback(L"Arial");
-    const Gdiplus::FontFamily* pFF = (ff.GetLastStatus() == Ok) ? &ff : &fallback;
+    const Gdiplus::FontFamily* pFF = (ff.GetLastStatus() == Gdiplus::Ok) ? &ff : &fallback;
 
-    Gdiplus::Font titleFont(pFF, 14.f, FontStyleBold,    UnitPixel);
-    Gdiplus::Font subFont  (pFF, 11.f, FontStyleRegular, UnitPixel);
+    Gdiplus::Font labelFont(pFF, 13.f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+    Gdiplus::SolidBrush grayBrush(Gdiplus::Color(255, 80, 92, 107));
 
-    SolidBrush titleBrush(Color(255, 25,  31,  40));
-    SolidBrush subBrush  (Color(255, 139, 149, 161));
+    Gdiplus::StringFormat fmt;
+    fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
 
-    StringFormat fmt;
-    fmt.SetAlignment(StringAlignmentCenter);
-
-    RectF titleRect(10.f, textTop, DLG_W - 20.f, 22.f);
-    g.DrawString(L"금융결제원", -1, &titleFont, titleRect, &fmt, &titleBrush);
-
-    RectF subRect(10.f, textTop + 26.f, DLG_W - 20.f, 18.f);
-    g.DrawString(L"결제 프로그램 업데이트중…", -1,
-                 &subFont, subRect, &fmt, &subBrush);
+    Gdiplus::RectF labelRect(10.f, 178.f, (float)(DLG_W - 20), 20.f);
+    g.DrawString(L"최신 버전으로 업데이트 중...", -1, &labelFont, labelRect, &fmt, &grayBrush);
 }
 
 void CLoadingDlg::OnTimer(UINT_PTR nIDEvent)

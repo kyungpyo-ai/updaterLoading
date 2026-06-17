@@ -33,9 +33,9 @@ protected:
 
 private:
     static const UINT TIMER_ANIM = 1;
-    static const int  DLG_W     = 300;
-    static const int  DLG_H     = 200;
-    static const int  CORNER_R  = 20;
+    static const int  DLG_W     = 360;
+    static const int  DLG_H     = 230;
+    static const int  CORNER_R  = 16;
 
     // 다이얼로그 스레드 간 공유 — HWND만 저장 (스레드 안전)
     static HWND   s_hWnd;
@@ -45,8 +45,11 @@ private:
 
     ULONG_PTR m_gdiplusToken;
     float     m_fAngle;
+    HICON     m_hAppIcon;
 
     void DrawBackground(Gdiplus::Graphics& g);
+    void DrawLogo(Gdiplus::Graphics& g);
+    void DrawSeparator(Gdiplus::Graphics& g);
     void DrawSpinner(Gdiplus::Graphics& g);
     void DrawLabel(Gdiplus::Graphics& g);
 };
