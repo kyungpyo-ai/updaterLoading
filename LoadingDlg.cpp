@@ -2,6 +2,7 @@
 #include "resource.h"
 #include "LoadingDlg.h"
 #include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
 
 using namespace Gdiplus;
 
