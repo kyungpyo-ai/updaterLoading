@@ -205,12 +205,12 @@ void CLoadingDlg::DrawLabel(Graphics& g)
     const float spinR   = 30.f;
     const float textTop = cy + spinR + 20.f;
 
-    FontFamily ff(L"\xB9D1\xC740 \xACE0\xB515");
-    FontFamily fallback(L"MS Shell Dlg 2");
-    const FontFamily* pFF = (ff.GetLastStatus() == Ok) ? &ff : &fallback;
+    Gdiplus::FontFamily ff(L"맑은 고딕");
+    Gdiplus::FontFamily fallback(L"Arial");
+    const Gdiplus::FontFamily* pFF = (ff.GetLastStatus() == Ok) ? &ff : &fallback;
 
-    Font titleFont(pFF, 14.f, FontStyleBold,    UnitPixel);
-    Font subFont  (pFF, 11.f, FontStyleRegular, UnitPixel);
+    Gdiplus::Font titleFont(pFF, 14.f, FontStyleBold,    UnitPixel);
+    Gdiplus::Font subFont  (pFF, 11.f, FontStyleRegular, UnitPixel);
 
     SolidBrush titleBrush(Color(255, 25,  31,  40));
     SolidBrush subBrush  (Color(255, 139, 149, 161));
